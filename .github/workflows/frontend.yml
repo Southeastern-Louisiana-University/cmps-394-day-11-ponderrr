@@ -1,0 +1,47 @@
+name: Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend.yml'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build -t frontend:ci ./frontend
+
+      - name: Run container
+        run: docker run -d --name frontend -p 8080:80 frontend:ci
+
+      - name: Verify response
+        run: |
+          for i in {1..10}; do
+            if curl -sf http://localhost:8080 | grep -q "Hello from the frontend!"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f frontend
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: frontend:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
